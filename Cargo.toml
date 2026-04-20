@@ -1,0 +1,120 @@
+[package]
+name = "rust-svelte-todo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.9"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.52.1", features = ["full"] }
+
+[profile.dev]
+opt-level = 0
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# ==============================================================================
+# WORKSPACE LINT CONFIGURATION
+# ==============================================================================
+# Priority system: higher number wins over lower number.
+# We set groups to -1 so individual lint overrides (priority 0, the default)
+# always beat the group setting. This is how you carve out exceptions.
+# ==============================================================================
+
+[workspace.lints.rust]
+
+# --- Safety ---
+# Flat-out bans unsafe{} blocks anywhere in the workspace.
+# "forbid" means not even #[allow(unsafe_code)] in source can override it.
+unsafe_code = "forbid"
+
+# --- Edition idioms ---
+# Enforces Rust 2018+ idioms: extern crate, anonymous lifetimes, dyn Trait, etc.
+# priority = -1 so specific overrides below can still win.
+rust_2018_idioms          = { level = "deny", priority = -1 }
+
+# Warn on missing docs for every public item: functions, structs, modules, etc.
+missing_docs              = "warn"
+
+# Warn when a public function can panic but has no # Panics section in its docs.
+missing_debug_implementations = "warn"
+
+
+[workspace.lints.clippy]
+
+# ==============================================================================
+# LINT GROUPS  (all at priority = -1 so individual rules below can override)
+# ==============================================================================
+
+# "all" = correctness + style + complexity + perf + suspicious combined.
+# These are the default Clippy lints, we just promote them from warn → deny.
+all      = { level = "deny",  priority = -2 }  # lowest priority — base layer
+
+# Opinionated extra lints. False positives are possible but rare.
+# Clippy itself runs with this group enabled on its own codebase.
+pedantic = { level = "deny",  priority = -1 }
+
+# Experimental lints not yet stabilized. Good signal, occasional noise.
+nursery  = { level = "deny",  priority = -1 }
+
+# cargo group: checks your Cargo.toml for missing metadata, duplicate deps, etc.
+cargo    = { level = "warn",  priority = -1 }  # warn not deny — often noisy in workspaces
+
+
+# ==============================================================================
+# INDIVIDUAL RESTRICTION LINTS  (cherry-picked — do NOT enable the whole group)
+# The restriction group lints intentionally contradict each other, so you must
+# pick only the ones that match your project's philosophy.
+# ==============================================================================
+
+# Ban .unwrap() — forces you to handle errors or explicitly panic with a message.
+unwrap_used           = "deny"
+
+# Ban .expect() with an empty or non-descriptive string? No — expect() is fine,
+# it at least forces a message. Enable this if you want to ban expect() too:
+# expect_used         = "deny"
+
+# Ban integer arithmetic that can silently overflow/underflow (no panic in release).
+# Forces use of checked_add, saturating_mul, etc.
+arithmetic_side_effects = "deny"
+
+# Bans std::mem::forget — use ManuallyDrop instead which is explicit about intent.
+mem_forget            = "deny"
+
+# Bans string_to_string() — use .to_owned() or .clone() instead.
+string_to_string      = "deny"
+
+# Forces every else { return } / else { continue } etc. to be removed (early return style).
+# Comment out if your team prefers explicit else branches.
+else_if_without_else  = "warn"
+
+# Require #[must_use] on functions returning Results/Options be actually used.
+# (already covered by the compiler in many cases, this catches more edge cases)
+must_use_candidate    = "warn"
+
+
+# ==============================================================================
+# INDIVIDUAL EXCEPTIONS  (priority = 0, beats the group deny at priority = -1)
+# ==============================================================================
+
+# missing_errors_doc: pedantic wants # Errors sections on every fn returning Result.
+# Noisy for internal code. Remove this allow if you want full doc enforcement.
+missing_errors_doc    = "allow"
+
+# needless_for_each: pedantic prefers for loops over .for_each(). Stylistic — keep
+# whichever your team prefers.
+needless_for_each     = "allow"
+
+# module_name_repetitions: pedantic flags `http::HttpClient` as redundant naming.
+# Very common in Rust APIs, so usually silenced.
+module_name_repetitions = "allow"
