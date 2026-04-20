@@ -1,3 +1,7 @@
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
+};
 use axum::{
     Json,
     extract::{Path, State},
@@ -118,6 +122,8 @@ async fn main() {
         .expect("Failed to run migrations");
 
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(signup))
+        .routes(routes!(signin))
         .routes(routes!(list_todos, create_todo))
         .routes(routes!(get_todo, update_todo))
         .with_state(pool)
@@ -167,7 +173,10 @@ async fn create_todo(
 
     // check slog uniqueness before attempting insert and add ulid to the slug to guarantee uniqueness without relying on DB errors for control flow
     for attempt in 0..3 {
-        if let Some(existing) = get_todo_by_slug(State(pool.clone()), slug.clone()).await? {
+        if get_todo_by_slug(State(pool.clone()), slug.clone())
+            .await?
+            .is_some()
+        {
             if attempt == 2 {
                 return Err(AppError::Conflict(format!(
                     "Failed to generate unique slug after 3 attempts"
@@ -216,6 +225,189 @@ async fn get_todo(
     Ok(Json(todo))
 }
 
+#[derive(Serialize, ToSchema)]
+struct Token {
+    token: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+struct CreateUser {
+    full_name: String,
+    email: String,
+    password: String,
+}
+
+#[derive(Serialize)]
+struct SignupClaims {
+    id: String,
+}
+
+#[derive(Serialize, ToSchema, Clone, sqlx::FromRow)]
+struct User {
+    id: String,
+    slug: String,
+    full_name: String,
+    email: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct DBUser {
+    id: String,
+    slug: String,
+    full_name: String,
+    email: String,
+    password: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/auth/signup",
+    request_body = CreateUser,
+    responses(
+        (status = 201, description = "User created", body = Token),
+        (status = 409, description = "Email already exists", body = ErrorResponse),
+    ),
+    tag = "users"
+)]
+async fn signup(
+    State(pool): State<AppState>,
+    Json(payload): Json<CreateUser>,
+) -> Result<Json<Token>, AppError> {
+    let email_exists = get_user_by_email(State(pool.clone()), payload.email.clone()).await?;
+    if email_exists.is_some() {
+        return Err(AppError::Conflict(
+            "User with this email already exists".into(),
+        ));
+    }
+    let mut slug = slugify(&payload.full_name);
+    for attempt in 0..3 {
+        if get_user_by_slug(State(pool.clone()), slug.clone())
+            .await?
+            .is_some()
+        {
+            if attempt == 2 {
+                return Err(AppError::Conflict(format!(
+                    "Failed to generate unique slug after 3 attempts"
+                )));
+            }
+            let random_suffix: String = Ulid::new().to_string()[20..].to_string();
+            let new_slug = format!("{}-{}", slug, random_suffix);
+            println!("Slug '{slug}' already exists, trying '{new_slug}'");
+            slug = new_slug;
+        } else {
+            break; // slug is unique, proceed with insert
+        }
+    }
+    let id = Ulid::new().to_string();
+
+    // SaltString::generate creates a cryptographically random salt per password.
+    // Never reuse salts — each password must have its own unique salt.
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(payload.password.as_bytes(), &salt)
+        .map_err(|e| AppError::Internal(sqlx::Error::Protocol(e.to_string())))?
+        .to_string();
+
+    sqlx::query(
+        "INSERT INTO users (id, slug, full_name, email, password) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(&id)
+    .bind(slug)
+    .bind(&payload.full_name)
+    .bind(&payload.email)
+    .bind(password_hash)
+    .execute(&pool)
+    .await?;
+
+    // Generate a JWT token for the new user
+    let jwt_secret =
+        std::env::var("JWT_SECRET").unwrap_or_else(|_| "dev-secret-change-me".to_string());
+    let claims = SignupClaims { id };
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &claims,
+        &jsonwebtoken::EncodingKey::from_secret(jwt_secret.as_bytes()),
+    )
+    .map_err(|e| AppError::Internal(sqlx::Error::Protocol(e.to_string())))?;
+
+    Ok(Json(Token { token }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/auth/signin",
+    request_body = CreateUser, // In a real app, you'd want a separate SignIn struct without full_name
+    responses(
+        (status = 200, description = "User signed in", body = Token),
+        (status = 401, description = "Invalid credentials", body = ErrorResponse),
+    ),
+    tag = "users"
+)]
+async fn signin(
+    State(pool): State<AppState>,
+    Json(payload): Json<CreateUser>,
+) -> Result<Json<Token>, AppError> {
+    let user = get_user_by_email(State(pool.clone()), payload.email.clone())
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    // Verify the password using Argon2's verify_password function
+    let parsed_hash = PasswordHash::new(&user.password)
+        .map_err(|e| AppError::Internal(sqlx::Error::Protocol(e.to_string())))?;
+    if Argon2::default()
+        .verify_password(payload.password.as_bytes(), &parsed_hash)
+        .is_err()
+    {
+        return Err(AppError::Conflict("Invalid credentials".into()));
+    }
+
+    // Generate a JWT token for the authenticated user
+    let jwt_secret =
+        std::env::var("JWT_SECRET").unwrap_or_else(|_| "dev-secret-change-me".to_string());
+    let claims = SignupClaims { id: user.id };
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &claims,
+        &jsonwebtoken::EncodingKey::from_secret(jwt_secret.as_bytes()),
+    )
+    .map_err(|e| AppError::Internal(sqlx::Error::Protocol(e.to_string())))?;
+
+    Ok(Json(Token { token }))
+}
+
+async fn get_user_by_id(
+    State(pool): State<AppState>,
+    id: String,
+) -> Result<Option<DBUser>, AppError> {
+    let user = sqlx::query_as::<_, DBUser>("SELECT * FROM users WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&pool)
+        .await?;
+    Ok(user)
+}
+
+async fn get_user_by_slug(
+    State(pool): State<AppState>,
+    slug: String,
+) -> Result<Option<DBUser>, AppError> {
+    let user = sqlx::query_as::<_, DBUser>("SELECT * FROM users WHERE slug = $1")
+        .bind(slug)
+        .fetch_optional(&pool)
+        .await?;
+    Ok(user)
+}
+
+async fn get_user_by_email(
+    State(pool): State<AppState>,
+    email: String,
+) -> Result<Option<DBUser>, AppError> {
+    let user = sqlx::query_as::<_, DBUser>("SELECT * FROM users WHERE email = $1")
+        .bind(email)
+        .fetch_optional(&pool)
+        .await?;
+    Ok(user)
+}
+
 #[utoipa::path(
     put,
     path = "/todos/{id}",
@@ -236,7 +428,10 @@ async fn update_todo(
 
     // check slog uniqueness before attempting insert and add ulid to the slug to guarantee uniqueness without relying on DB errors for control flow
     for attempt in 0..3 {
-        if let Some(existing) = get_todo_by_slug(State(pool.clone()), slug.clone()).await? {
+        if get_todo_by_slug(State(pool.clone()), slug.clone())
+            .await?
+            .is_some()
+        {
             if attempt == 2 {
                 return Err(AppError::Conflict(format!(
                     "Failed to generate unique slug after 3 attempts"
