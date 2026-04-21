@@ -1,5 +1,5 @@
 use crate::{
-    auth::{encode_jwt, try_authenticate},
+    auth::{encode_jwt, OptionalAuthSession},
     db,
     error::AppError,
     models::{CreateUser, Token, User},
@@ -11,7 +11,7 @@ use argon2::{
 use axum::{
     Json,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
 };
 use slug::slugify;
 use sqlx::PgPool;
@@ -137,10 +137,8 @@ pub async fn signin(
     tag = "users"
 )]
 #[tracing::instrument(skip_all)]
-pub async fn me(headers: HeaderMap, State(pool): State<PgPool>) -> Result<Json<User>, AppError> {
-    let user = try_authenticate(&pool, &headers)
-        .await
-        .ok_or(AppError::Unauthorized)?;
+pub async fn me(OptionalAuthSession(user): OptionalAuthSession) -> Result<Json<User>, AppError> {
+    let user = user.ok_or(AppError::Unauthorized)?;
     tracing::debug!(user.id = %user.id, "fetched current user");
     Ok(Json(user))
 }

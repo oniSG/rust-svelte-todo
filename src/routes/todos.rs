@@ -1,5 +1,5 @@
 use crate::{
-    auth::try_authenticate,
+    auth::OptionalAuthSession,
     db,
     error::AppError,
     models::{CreateTodo, Todo, UpdateTodo},
@@ -7,7 +7,7 @@ use crate::{
 use axum::{
     Json,
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
 };
 use slug::slugify;
 use sqlx::PgPool;
@@ -34,12 +34,10 @@ use ulid::Ulid;
 )]
 #[tracing::instrument(skip_all)]
 pub async fn list_todos(
-    headers: HeaderMap,
+    OptionalAuthSession(user): OptionalAuthSession,
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<Todo>>, AppError> {
-    try_authenticate(&pool, &headers)
-        .await
-        .ok_or(AppError::Unauthorized)?;
+    user.ok_or(AppError::Unauthorized)?;
 
     let todos = db::todos::list(&pool).await?;
     tracing::debug!(count = todos.len(), "listed todos");
@@ -72,13 +70,11 @@ pub async fn list_todos(
 )]
 #[tracing::instrument(skip_all)]
 pub async fn create_todo(
-    headers: HeaderMap,
+    OptionalAuthSession(user): OptionalAuthSession,
     State(pool): State<PgPool>,
     Json(payload): Json<CreateTodo>,
 ) -> Result<(StatusCode, Json<Todo>), AppError> {
-    try_authenticate(&pool, &headers)
-        .await
-        .ok_or(AppError::Unauthorized)?;
+    user.ok_or(AppError::Unauthorized)?;
 
     let mut slug = slugify(&payload.title);
     for attempt in 0..3 {
@@ -124,13 +120,11 @@ pub async fn create_todo(
 )]
 #[tracing::instrument(skip_all, fields(todo.id = %id))]
 pub async fn get_todo(
-    headers: HeaderMap,
+    OptionalAuthSession(user): OptionalAuthSession,
     State(pool): State<PgPool>,
     Path(id): Path<String>,
 ) -> Result<Json<Todo>, AppError> {
-    try_authenticate(&pool, &headers)
-        .await
-        .ok_or(AppError::Unauthorized)?;
+    user.ok_or(AppError::Unauthorized)?;
 
     let todo = db::todos::get_by_id(&pool, &id).await?.ok_or_else(|| {
         tracing::warn!(todo.id = %id, "todo not found");
@@ -167,14 +161,12 @@ pub async fn get_todo(
 )]
 #[tracing::instrument(skip_all, fields(todo.id = %id))]
 pub async fn update_todo(
-    headers: HeaderMap,
+    OptionalAuthSession(user): OptionalAuthSession,
     State(pool): State<PgPool>,
     Path(id): Path<String>,
     Json(payload): Json<UpdateTodo>,
 ) -> Result<Json<Todo>, AppError> {
-    try_authenticate(&pool, &headers)
-        .await
-        .ok_or(AppError::Unauthorized)?;
+    user.ok_or(AppError::Unauthorized)?;
 
     let mut slug = slugify(&payload.title);
     for attempt in 0..3 {
@@ -226,13 +218,11 @@ pub async fn update_todo(
 )]
 #[tracing::instrument(skip_all, fields(todo.id = %id))]
 pub async fn delete_todo(
-    headers: HeaderMap,
+    OptionalAuthSession(user): OptionalAuthSession,
     State(pool): State<PgPool>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    try_authenticate(&pool, &headers)
-        .await
-        .ok_or(AppError::Unauthorized)?;
+    user.ok_or(AppError::Unauthorized)?;
 
     if db::todos::get_by_id(&pool, &id).await?.is_none() {
         tracing::warn!(todo.id = %id, "todo not found for delete");

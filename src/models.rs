@@ -41,7 +41,7 @@ pub struct Claims {
     pub exp: u64,
 }
 
-#[derive(Serialize, ToSchema, Clone, sqlx::FromRow)]
+#[derive(Debug, Serialize, ToSchema, Clone, sqlx::FromRow)]
 pub struct User {
     pub id: String,
     pub slug: String,

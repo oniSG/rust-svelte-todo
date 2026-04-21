@@ -1,6 +1,27 @@
+use std::convert::Infallible;
+
+use axum::extract::FromRequestParts;
 use axum::http::HeaderMap;
+use axum::http::request::Parts;
 use sqlx::PgPool;
+
 use crate::{db, error::AppError, models::{Claims, User}};
+
+/// Extractor for routes that work for both anonymous and authenticated users.
+/// Always succeeds — use `session.0` to get `Option<User>`.
+#[derive(Debug, Clone)]
+pub struct OptionalAuthSession(pub Option<User>);
+
+impl FromRequestParts<PgPool> for OptionalAuthSession {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &PgPool,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(try_authenticate(state, &parts.headers).await))
+    }
+}
 
 #[tracing::instrument(skip_all)]
 pub async fn try_authenticate(pool: &PgPool, headers: &HeaderMap) -> Option<User> {
