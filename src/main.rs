@@ -4,8 +4,8 @@ use argon2::{
 };
 use axum::{
     Json,
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{FromRequestParts, Path, State},
+    http::{StatusCode, request::Parts},
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
@@ -55,6 +55,7 @@ impl ErrorResponse {
 // Adding a new error case is just adding a variant here.
 enum AppError {
     NotFound,
+    Unauthorized,
     Conflict(String),      // e.g. unique constraint — caller provides the message
     Internal(sqlx::Error), // unexpected DB error — message is hidden from the client
 }
@@ -67,6 +68,9 @@ impl IntoResponse for AppError {
         match self {
             Self::NotFound => {
                 (StatusCode::NOT_FOUND, ErrorResponse::new("not found")).into_response()
+            }
+            Self::Unauthorized => {
+                (StatusCode::UNAUTHORIZED, ErrorResponse::new("unauthorized")).into_response()
             }
             Self::Conflict(msg) => (StatusCode::CONFLICT, ErrorResponse::new(msg)).into_response(),
             Self::Internal(err) => {
@@ -124,6 +128,7 @@ async fn main() {
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(signup))
         .routes(routes!(signin))
+        .routes(routes!(me))
         .routes(routes!(list_todos, create_todo))
         .routes(routes!(get_todo, update_todo))
         .with_state(pool)
@@ -237,9 +242,68 @@ struct CreateUser {
     password: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct SignupClaims {
     id: String,
+}
+
+// AuthUser is an extractor — add it as a handler parameter to require auth.
+// Use Option<AuthUser> for routes that work for both guests and logged-in users.
+struct AuthUser(User);
+
+impl FromRequestParts<AppState> for AuthUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        pool: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        // 1. Pull the Authorization header
+        let auth_header = parts
+            .headers
+            .get("Authorization")
+            .and_then(|v| v.to_str().ok())
+            .ok_or(AppError::Unauthorized)?;
+
+        println!("Auth header: {auth_header}");
+
+        // 2. Expect "Bearer <token>"
+        let token = auth_header
+            .strip_prefix("Bearer ")
+            .ok_or(AppError::Unauthorized)?;
+
+        println!("Token: {token}");
+
+        // 3. Decode and validate the JWT signature
+        let jwt_secret =
+            std::env::var("JWT_SECRET").unwrap_or_else(|_| "dev-secret-change-me".to_string());
+
+        // validate_exp: false + clear required_spec_claims because SignupClaims has no exp field.
+        // In production: add `exp: usize` to SignupClaims, remove these two lines,
+        // and tokens will be rejected once expired.
+        let mut validation = jsonwebtoken::Validation::default();
+        validation.validate_exp = false;
+        validation.required_spec_claims = std::collections::HashSet::new();
+
+        let claims = jsonwebtoken::decode::<SignupClaims>(
+            token,
+            &jsonwebtoken::DecodingKey::from_secret(jwt_secret.as_bytes()),
+            &validation,
+        )
+        .map_err(|_| AppError::Unauthorized)?
+        .claims;
+
+        // 4. Fetch the user from the DB
+        let user =
+            sqlx::query_as::<_, User>("SELECT id, slug, full_name, email FROM users WHERE id = $1")
+                .bind(&claims.id)
+                .fetch_optional(pool)
+                .await
+                .map_err(AppError::Internal)?
+                .ok_or(AppError::Unauthorized)?;
+
+        Ok(Self(user))
+    }
 }
 
 #[derive(Serialize, ToSchema, Clone, sqlx::FromRow)]
@@ -349,7 +413,7 @@ async fn signin(
 ) -> Result<Json<Token>, AppError> {
     let user = get_user_by_email(State(pool.clone()), payload.email.clone())
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::Conflict("Invalid credentials".into()))?;
 
     // Verify the password using Argon2's verify_password function
     let parsed_hash = PasswordHash::new(&user.password)
@@ -373,6 +437,22 @@ async fn signin(
     .map_err(|e| AppError::Internal(sqlx::Error::Protocol(e.to_string())))?;
 
     Ok(Json(Token { token }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/users/me",
+    responses(
+        (status = 200, description = "Current user info", body = User),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    ),
+    tag = "users"
+)]
+async fn me(
+    State(pool): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> Result<Json<User>, AppError> {
+    Ok(Json(user))
 }
 
 async fn get_user_by_id(
