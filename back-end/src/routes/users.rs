@@ -1,5 +1,5 @@
 use crate::{
-    auth::{AuthService, OptionalAuthSession},
+    auth::{AuthService, OptionalAuthSession, clear_auth_cookie, make_auth_cookie},
     db::DatabaseService,
     error::AppError,
     models::{SigninUser, SignupUser, Token, User},
@@ -9,12 +9,13 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use axum::{Json, extract::State, http::StatusCode};
+use axum_extra::extract::cookie::CookieJar;
 use slug::slugify;
 use ulid::Ulid;
 
 /// Sign up
 ///
-/// Creates a new user account and returns a JWT token.
+/// Creates a new user account and returns a JWT token and sets an `auth_token` HttpOnly cookie.
 ///
 /// A unique slug is generated from the user's full name. If a slug collision occurs,
 /// it will attempt to generate a new slug up to 3 times before returning a conflict error.
@@ -32,8 +33,9 @@ use ulid::Ulid;
 pub async fn signup(
     State(auth): State<AuthService>,
     State(db): State<DatabaseService>,
+    jar: CookieJar,
     Json(payload): Json<SignupUser>,
-) -> Result<(StatusCode, Json<Token>), AppError> {
+) -> Result<(StatusCode, CookieJar, Json<Token>), AppError> {
     if db.get_user_by_email(&payload.email).await?.is_some() {
         tracing::warn!(email = %payload.email, "signup with already-used email");
         return Err(AppError::Conflict("email already in use".to_owned()));
@@ -71,19 +73,17 @@ pub async fn signup(
     .await?;
 
     tracing::info!(user.id = %id, user.email = %payload.email, "user signed up");
-    Ok((
-        StatusCode::CREATED,
-        Json(Token {
-            token: auth.encode_jwt(&id)?,
-        }),
-    ))
+    let token = auth.encode_jwt(&id)?;
+    let jar = jar.add(make_auth_cookie(token.clone()));
+    Ok((StatusCode::CREATED, jar, Json(Token { token })))
 }
 
 /// Sign in
 ///
-/// Authenticates an existing user with their email and password, and returns a JWT token.
+/// Authenticates an existing user and sets an `auth_token` HttpOnly cookie.
 ///
-/// The token can be used in the `Authorization: Bearer <token>` header to access protected endpoints.
+/// The cookie is used automatically for subsequent requests. The token is also returned
+/// in the response body for clients that prefer the `Authorization: Bearer` header.
 #[utoipa::path(
     post,
     path = "/auth/signin",
@@ -98,8 +98,9 @@ pub async fn signup(
 pub async fn signin(
     State(auth): State<AuthService>,
     State(db): State<DatabaseService>,
+    jar: CookieJar,
     Json(payload): Json<SigninUser>,
-) -> Result<Json<Token>, AppError> {
+) -> Result<(CookieJar, Json<Token>), AppError> {
     let user = db.get_user_by_email(&payload.email).await?.ok_or_else(|| {
         tracing::warn!(email = %payload.email, "signin attempt for unknown email");
         AppError::Unauthorized
@@ -115,23 +116,20 @@ pub async fn signin(
     }
 
     tracing::info!(user.id = %user.id, "user signed in");
-    Ok(Json(Token {
-        token: auth.encode_jwt(&user.id)?,
-    }))
+    let token = auth.encode_jwt(&user.id)?;
+    let jar = jar.add(make_auth_cookie(token.clone()));
+    Ok((jar, Json(Token { token })))
 }
 
 /// Get current user
 ///
 /// Returns the profile of the currently authenticated user.
 ///
-/// The request must include a valid Bearer token in the Authorization header for authentication
-/// (use the `/auth/signup` or `/auth/signin` endpoint to obtain a token).
+/// Authentication is accepted via `auth_token` cookie (preferred) or
+/// `Authorization: Bearer <token>` header.
 #[utoipa::path(
     get,
     path = "/users/me",
-    params(
-        ("Authorization" = String, Header, description = "Bearer access token. Format: `Bearer <token>`")
-    ),
     security(("bearerAuth" = [])),
     responses(
         (status = 200, description = "Current user profile", body = User),
@@ -144,4 +142,22 @@ pub async fn me(OptionalAuthSession(user): OptionalAuthSession) -> Result<Json<U
     let user = user.ok_or(AppError::Unauthorized)?;
     tracing::debug!(user.id = %user.id, "fetched current user");
     Ok(Json(user))
+}
+
+/// Logout
+///
+/// Clears the `auth_token` cookie.
+#[utoipa::path(
+    post,
+    path = "/auth/logout",
+    responses(
+        (status = 204, description = "Logged out, cookie cleared"),
+    ),
+    tag = "Users"
+)]
+#[tracing::instrument(skip_all)]
+pub async fn logout(jar: CookieJar) -> (StatusCode, CookieJar) {
+    let jar = jar.remove(clear_auth_cookie());
+    tracing::info!("user logged out");
+    (StatusCode::NO_CONTENT, jar)
 }

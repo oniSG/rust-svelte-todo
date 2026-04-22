@@ -1,7 +1,7 @@
 pub mod todos;
 pub mod users;
 
-use axum::{Router, extract::FromRef, http::{HeaderValue, Method}};
+use axum::{Router, extract::FromRef, http::{HeaderValue, Method, header}};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use utoipa::{
     OpenApi,
@@ -64,6 +64,7 @@ pub fn build_router(db: DatabaseService, auth: AuthService) -> Router {
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::signup))
         .routes(routes!(users::signin))
+        .routes(routes!(users::logout))
         .routes(routes!(users::me))
         .routes(routes!(todos::list_todos, todos::create_todo))
         .routes(routes!(
@@ -77,7 +78,8 @@ pub fn build_router(db: DatabaseService, auth: AuthService) -> Router {
     let cors = CorsLayer::new()
         .allow_origin("http://localhost:3001".parse::<HeaderValue>().expect("valid origin"))
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
-        .allow_headers(tower_http::cors::Any);
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+        .allow_credentials(true);
 
     router
         .merge(SwaggerUi::new("/swagger").url("/openapi.json", api.clone()))

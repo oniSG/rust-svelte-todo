@@ -1,14 +1,32 @@
 use std::convert::Infallible;
 
 use axum::extract::{FromRef, FromRequestParts};
-use axum::http::HeaderMap;
 use axum::http::request::Parts;
+use axum_extra::extract::cookie::{Cookie, SameSite};
+use time::Duration;
 
 use crate::{
     db::DatabaseService,
     error::AppError,
     models::{Claims, User},
 };
+
+pub const AUTH_COOKIE: &str = "auth_token";
+
+/// Builds a signed-in `auth_token` cookie with secure defaults.
+pub fn make_auth_cookie(token: String) -> Cookie<'static> {
+    Cookie::build((AUTH_COOKIE, token))
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .path("/")
+        .max_age(Duration::days(7))
+        .build()
+}
+
+/// Builds an expired `auth_token` cookie that instructs the browser to delete it.
+pub fn clear_auth_cookie() -> Cookie<'static> {
+    Cookie::build(AUTH_COOKIE).path("/").build()
+}
 
 /// Owns the JWT secret and a Database handle.
 /// All authentication logic lives here — token encoding, decoding, user lookup.
@@ -55,16 +73,35 @@ impl AuthService {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn try_authenticate(&self, headers: &HeaderMap) -> Option<User> {
-        let token = headers
-            .get("Authorization")
+    pub async fn try_authenticate(&self, parts: &mut Parts) -> Option<User> {
+        // Check HttpOnly cookie first, fall back to Authorization header.
+        let cookie_token = parts
+            .headers
+            .get(axum::http::header::COOKIE)
             .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-            .and_then(|v| v.split(',').next())
-            .map(str::trim)
-            .filter(|s| !s.is_empty())?;
+            .and_then(|cookies_str| {
+                cookies_str.split(';').find_map(|part| {
+                    part.trim()
+                        .strip_prefix(&format!("{AUTH_COOKIE}="))
+                        .map(ToOwned::to_owned)
+                })
+            });
 
-        let claims = self.decode_jwt(token).or_else(|| {
+        let header_token = || {
+            parts
+                .headers
+                .get("Authorization")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.strip_prefix("Bearer "))
+                .and_then(|v| v.split(',').next())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(ToOwned::to_owned)
+        };
+
+        let token = cookie_token.or_else(header_token)?;
+
+        let claims = self.decode_jwt(&token).or_else(|| {
             tracing::warn!("jwt decode failed");
             None
         })?;
@@ -97,6 +134,6 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let auth = AuthService::from_ref(state);
-        Ok(Self(auth.try_authenticate(&parts.headers).await))
+        Ok(Self(auth.try_authenticate(parts).await))
     }
 }
