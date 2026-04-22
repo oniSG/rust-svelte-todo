@@ -40,6 +40,12 @@ impl From<argon2::password_hash::Error> for AppError {
     }
 }
 
+impl From<mongodb::error::Error> for AppError {
+    fn from(err: mongodb::error::Error) -> Self {
+        Self::Internal(err.to_string())
+    }
+}
+
 impl From<jsonwebtoken::errors::Error> for AppError {
     fn from(err: jsonwebtoken::errors::Error) -> Self {
         Self::Internal(err.to_string())

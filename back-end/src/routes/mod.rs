@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod tenants;
 pub mod todos;
 pub mod users;
 
@@ -16,7 +17,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_scalar::{Scalar, Servable};
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::{auth::AuthService, db::DatabaseService};
+use crate::{auth::AuthService, db::DatabaseService, mongo::MongoService};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -24,6 +25,7 @@ use crate::{auth::AuthService, db::DatabaseService};
         (name = "Todos"),
         (name = "Auth"),
         (name = "Users"),
+        (name = "Tenants", description = "Multi-tenant registry and per-tenant fan counts (Atlas / MongoDB)"),
     ),
     modifiers(&SecurityAddon),
 )]
@@ -47,11 +49,13 @@ impl utoipa::Modify for SecurityAddon {
 }
 
 /// Shared axum application state.
-/// Both `Database` and `AuthService` are extractable individually via `FromRef`.
+/// `DatabaseService`, `AuthService`, and `MongoService` are each individually
+/// extractable via `FromRef`.
 #[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseService,
     pub auth: AuthService,
+    pub mongo: MongoService,
 }
 
 impl FromRef<AppState> for DatabaseService {
@@ -66,7 +70,13 @@ impl FromRef<AppState> for AuthService {
     }
 }
 
-pub fn build_router(db: DatabaseService, auth: AuthService) -> Router {
+impl FromRef<AppState> for MongoService {
+    fn from_ref(state: &AppState) -> Self {
+        state.mongo.clone()
+    }
+}
+
+pub fn build_router(db: DatabaseService, auth: AuthService, mongo: MongoService) -> Router {
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(auth::signin))
         .routes(routes!(auth::me))
@@ -83,7 +93,14 @@ pub fn build_router(db: DatabaseService, auth: AuthService) -> Router {
             users::update_user,
             users::delete_user
         ))
-        .with_state(AppState { db, auth })
+        // Tenant routes — each on its own call because they are all GET but on
+        // different paths. Static paths (/fans/count) must come before dynamic
+        // ones (/:hostname) to avoid axum shadowing them.
+        .routes(routes!(tenants::list_tenants))
+        .routes(routes!(tenants::count_all_fans))
+        .routes(routes!(tenants::get_tenant))
+        .routes(routes!(tenants::count_fans_for_tenant))
+        .with_state(AppState { db, auth, mongo })
         .split_for_parts();
 
     let cors = CorsLayer::new()

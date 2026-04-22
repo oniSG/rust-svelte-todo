@@ -3,6 +3,7 @@ mod config;
 mod db;
 mod error;
 mod models;
+mod mongo;
 mod routes;
 
 #[tokio::main]
@@ -35,9 +36,28 @@ async fn main() {
         .expect("Failed to run migrations");
     tracing::info!("migrations applied successfully");
 
+    let mongo = mongo::MongoService::new(&config.mongo_db_url)
+        .await
+        .expect("Failed to connect to MongoDB");
+    tracing::info!("connected to MongoDB");
+
+    match mongo.count_fans_per_tenant().await {
+        Ok(counts) => {
+            for item in &counts {
+                tracing::info!(
+                    tenant = %item.tenant_name,
+                    db    = %item.db_name,
+                    fans  = item.fan_count,
+                    "tenant fan count"
+                );
+            }
+        }
+        Err(err) => tracing::error!(?err, "failed to count fans per tenant"),
+    }
+
     let db = db::DatabaseService::new(pool);
     let auth = auth::AuthService::new(db.clone(), config.jwt_secret);
-    let app: axum::Router = routes::build_router(db, auth);
+    let app: axum::Router = routes::build_router(db, auth, mongo);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
