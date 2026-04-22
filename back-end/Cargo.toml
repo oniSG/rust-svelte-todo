@@ -19,7 +19,7 @@ jsonwebtoken = "9"
 argon2 = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-tower-http = { version = "0.6", features = ["trace"] }
+tower-http = { version = "0.6", features = ["trace", "cors"] }
 
 [profile.dev]
 opt-level = 0

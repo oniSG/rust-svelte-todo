@@ -1,8 +1,8 @@
 pub mod todos;
 pub mod users;
 
-use axum::{Router, extract::FromRef};
-use tower_http::trace::TraceLayer;
+use axum::{Router, extract::FromRef, http::{HeaderValue, Method}};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use utoipa::{
     OpenApi,
     openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
@@ -74,8 +74,14 @@ pub fn build_router(db: DatabaseService, auth: AuthService) -> Router {
         .with_state(AppState { db, auth })
         .split_for_parts();
 
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:3001".parse::<HeaderValue>().expect("valid origin"))
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+        .allow_headers(tower_http::cors::Any);
+
     router
         .merge(SwaggerUi::new("/swagger").url("/openapi.json", api.clone()))
         .merge(Scalar::with_url("/scalar", api))
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
 }
