@@ -31,8 +31,26 @@ async fn main() {
     let app: axum::Router = routes::build_router(db);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    tracing::info!("listening on http://localhost:3000");
-    tracing::info!("swagger UI at http://localhost:3000/swagger/");
-    tracing::info!("scalar UI at http://localhost:3000/scalar/");
+
+    println!();
+    println!(r"  $$$$$$$\            $$\            $$\                         ");
+    println!(r"  $$  __$$\           $$ |           $$ |                        ");
+    println!(r"  $$ |  $$ | $$$$$$\  $$ | $$$$$$\ $$$$$$\    $$$$$$\   $$$$$$\ ");
+    println!(r"  $$$$$$$  |$$  __$$\ $$ | \____$$\\_$$  _|  $$  __$$\ $$  __$$\");
+    println!(r"  $$  __$$< $$$$$$$$ |$$ | $$$$$$$ | $$ |    $$ /  $$ |$$ /  $$ |");
+    println!(r"  $$ |  $$ |$$   ____|$$ |$$  __$$ | $$ |$$\ $$ |  $$ |$$ |  $$ |");
+    println!(r"  $$ |  $$ |\$$$$$$$\ $$ |\$$$$$$$ | \$$$$  |\$$$$$$  |\$$$$$$  |");
+    println!(r"  \__|  \__| \_______|\__| \_______|  \____/  \______/  \______/ ");
+    println!();
+    println!("  ┌──────────────────────────────────────────────────────────┐");
+    println!("  │                      API  DOCS                           │");
+    println!("  ├───────────────┬──────────────────────────────────────────┤");
+    println!("  │  Server       │  http://localhost:3000                   │");
+    println!("  │  Swagger UI   │  http://localhost:3000/swagger/          │");
+    println!("  │  Scalar UI    │  http://localhost:3000/scalar/           │");
+    println!("  │  OpenAPI JSON │  http://localhost:3000/openapi.json      │");
+    println!("  └───────────────┴──────────────────────────────────────────┘");
+    println!();
+
     axum::serve(listener, app).await.unwrap();
 }
