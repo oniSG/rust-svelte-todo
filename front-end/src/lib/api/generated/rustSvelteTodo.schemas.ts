@@ -4,9 +4,29 @@
  * rust-svelte-todo
  * OpenAPI spec version: 0.1.0
  */
-export interface CreateTodo {
-  description: string;
-  title: string;
+export type AutomationMoveBusinessCaseValue = { [key: string]: unknown };
+
+export interface AutomationMoveBusinessCase {
+  /** @nullable */
+  label?: string | null;
+  value: AutomationMoveBusinessCaseValue;
+}
+
+export interface BiUrl {
+  /** @nullable */
+  default?: boolean | null;
+  /** @nullable */
+  favorite?: boolean | null;
+  /** @nullable */
+  id?: string | null;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  public?: boolean | null;
+  /** @nullable */
+  tenant?: boolean | null;
+  /** @nullable */
+  users?: string[] | null;
 }
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
@@ -25,8 +45,83 @@ export interface CreateUser {
   role: UserRole;
 }
 
+/**
+ * A single slice in a percentage breakdown.
+ */
+export interface DistributionEntry {
+  /**
+     * Raw document count for this slice.
+     * @minimum 0
+     */
+  count: number;
+  /** Human-readable label (e.g. "Samsung", "Female", "Prague"). */
+  label: string;
+  /** Share of the total, 0–100 rounded to two decimal places. */
+  percentage: number;
+}
+
 export interface ErrorResponse {
   error: string;
+}
+
+/**
+ * One point in the fans-over-time series.
+ */
+export interface FansDataPoint {
+  /**
+     * Cumulative fan count up to and including this month.
+     * @minimum 0
+     */
+  count: number;
+  /** Unix timestamp in milliseconds (UTC midnight, 1st of the month). */
+  timestamp: number;
+}
+
+/**
+ * Fan breakdowns by device, city and gender.
+ */
+export interface FansDistributions {
+  /** Most-common cities first; empty-string / null → "Unknown". */
+  cities: DistributionEntry[];
+  /** Most-common devices first; empty-string / null → "Unknown". */
+  devices: DistributionEntry[];
+  /** Female / Male / Unknown derived from the boolean `gender` field. */
+  genders: DistributionEntry[];
+}
+
+export interface FrequencyCap {
+  /** @nullable */
+  enabled?: boolean | null;
+  /** @nullable */
+  maxEmails?: number | null;
+  /** @nullable */
+  periodDays?: number | null;
+}
+
+export interface PriceListImport {
+  /** @nullable */
+  allowedUsers?: string[] | null;
+  /** @nullable */
+  enabled?: boolean | null;
+}
+
+export interface InternalFeatures {
+  priceListImport?: null | PriceListImport;
+}
+
+export type OnOff = typeof OnOff[keyof typeof OnOff];
+
+
+export const OnOff = {
+  ON: 'ON',
+  OFF: 'OFF',
+} as const;
+
+export interface Security {
+  /** @nullable */
+  firstLoginPasswordChange?: boolean | null;
+  /** @nullable */
+  twoFARequired?: boolean | null;
 }
 
 export interface SigninUser {
@@ -34,22 +129,301 @@ export interface SigninUser {
   password: string;
 }
 
-export interface Todo {
-  completed: boolean;
-  description: string;
+/**
+ * Deeply nested, variable-shape GDPR translation map.
+ */
+export type TenantResponseGdprTranslation = { [key: string]: unknown };
+
+export type TenantResponseSubjectPrefixesItem = { [key: string]: unknown };
+
+export interface VisualizationItem {
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  svgHeight?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  svgWidth?: number | null;
+  /** @nullable */
+  url?: string | null;
+}
+
+export interface Visualization {
+  CARD?: null | VisualizationItem;
+  PLAYER?: null | VisualizationItem;
+  STADIUM?: null | VisualizationItem;
+  STADIUM_2?: null | VisualizationItem;
+}
+
+export interface Webhooks {
+  /** @nullable */
+  ESHOP_ORDER_PAID?: string | null;
+  /** @nullable */
+  EVENT_CREATE?: string | null;
+  /** @nullable */
+  GDPR?: string | null;
+  /** @nullable */
+  LOYALTY_POINTS_ADDED?: string | null;
+  /** @nullable */
+  MEMBERSHIP_ORDER_PAID?: string | null;
+  /** @nullable */
+  MEMBERSHIP_STATUS_CHANGE?: string | null;
+  /** @nullable */
+  MEMBERSHIP_STORNO?: string | null;
+  /** @nullable */
+  MEMBERSHIP_SUBSCRIPTION_PAYMENT?: string | null;
+  /** @nullable */
+  MEMBERSHIP_SUBSCRIPTION_PAYMENT_CHANGE?: string | null;
+  /** @nullable */
+  MOBILE_APP_PAIR_SEASON_TICKET?: string | null;
+  /** @nullable */
+  MOBILE_APP_UNPAIR_SEASON_TICKET?: string | null;
+  /** @nullable */
+  SEASON_BARCODE_CHANGE?: string | null;
+  /** @nullable */
+  SEASON_ORDER_PAID?: string | null;
+  /** @nullable */
+  SEASON_STORNO?: string | null;
+  /** @nullable */
+  SEASON_TICKET_GIFT?: string | null;
+  /** @nullable */
+  TICKET_BARCODE_CHANGE?: string | null;
+  /** @nullable */
+  TICKET_ORDER_PAID?: string | null;
+  /** @nullable */
+  TICKET_STORNO?: string | null;
+  /** @nullable */
+  TURNSTILE_ENTRANCE?: string | null;
+  /** @nullable */
+  USER_ONEID_DELETE?: string | null;
+  /** @nullable */
+  USER_ONEID_REGISTRATION?: string | null;
+}
+
+/**
+ * Public representation of a tenant returned by the API.
+ */
+export interface TenantResponse {
+  /** @nullable */
+  access_api_eshop_token?: string | null;
+  /** @nullable */
+  access_api_internal?: string | null;
+  /** @nullable */
+  access_api_mobile_token?: string | null;
+  /** @nullable */
+  access_api_oneid?: string | null;
+  /** @nullable */
+  access_api_ticketing?: string | null;
+  /** @nullable */
+  active?: boolean | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  ai_segments?: boolean | null;
+  /** @nullable */
+  allow_default_gdpr?: boolean | null;
+  /** @nullable */
+  api_endpoint?: string | null;
+  /** @nullable */
+  approval_email?: string | null;
+  /** @nullable */
+  association_crm?: boolean | null;
+  /** @nullable */
+  automation_business_case_state?: boolean | null;
+  automation_move_business_case?: null | AutomationMoveBusinessCase;
+  /** @nullable */
+  aws_access_key?: string | null;
+  /** @nullable */
+  aws_address?: string | null;
+  /** @nullable */
+  aws_bucket_name?: string | null;
+  /** @nullable */
+  aws_bucket_region?: string | null;
+  /** @nullable */
+  aws_secret_key?: string | null;
+  /** @nullable */
+  bi_url?: BiUrl[] | null;
+  /** @nullable */
+  bonus_guideline?: boolean | null;
+  business_module: OnOff;
+  /** @nullable */
+  clickhouse_password?: string | null;
+  /** @nullable */
+  clickhouse_username?: string | null;
+  /** @nullable */
+  club_logo?: string | null;
+  /** @nullable */
+  company?: string | null;
+  /** @nullable */
+  content_type?: string | null;
+  /** @nullable */
+  contract_email?: string | null;
+  /** @nullable */
+  contract_rs_template?: string | null;
+  /** @nullable */
+  create_fan_from_ticket_attribute?: boolean | null;
+  db_name: string;
+  /** @nullable */
+  default_language?: string | null;
+  /** @nullable */
+  dic?: string | null;
+  /** @nullable */
+  domain_name?: string | null;
+  email_frequency_cap?: null | FrequencyCap;
+  /** @nullable */
+  email_host?: string | null;
+  /** @nullable */
+  email_password?: string | null;
+  /** @nullable */
+  email_port?: number | null;
+  /** @nullable */
+  email_username?: string | null;
+  /** @nullable */
+  enigoo_api?: string | null;
+  /** @nullable */
+  enigoo_channel?: string | null;
+  /** @nullable */
+  enigoo_integration?: boolean | null;
+  /** @nullable */
+  enigoo_token?: string | null;
+  /** @nullable */
+  enigoo_token_api?: string | null;
+  /** @nullable */
+  esports_games_api?: string | null;
+  /** @nullable */
+  esports_games_key?: string | null;
+  /** @nullable */
+  fan_import_matching_strategy?: string | null;
+  fans_module: OnOff;
+  /** @nullable */
+  futured_integration?: boolean | null;
+  /** Deeply nested, variable-shape GDPR translation map. */
+  gdpr_translation: TenantResponseGdprTranslation;
+  /** @nullable */
+  google?: boolean | null;
+  /** @nullable */
+  google_callback?: string | null;
+  /** @nullable */
+  google_callback_fe_fail?: string | null;
+  /** @nullable */
+  google_client_id?: string | null;
+  /** @nullable */
+  google_client_secret?: string | null;
+  /** @nullable */
+  highlight_before_expiration?: number | null;
+  hostname: string;
+  /** @nullable */
+  ico?: string | null;
+  /** MongoDB ObjectId serialised as a 24-character hex string. */
   id: string;
-  slug: string;
-  title: string;
+  internal_features?: null | InternalFeatures;
+  /** @nullable */
+  invoice_notification?: boolean | null;
+  /** @nullable */
+  invoice_notification_days_before?: number | null;
+  /** @nullable */
+  invoice_notification_email?: string | null;
+  /** @nullable */
+  is_gina_enabled?: boolean | null;
+  /** @nullable */
+  max_segment_recalculate?: number | null;
+  message_frequency_cap?: null | FrequencyCap;
+  /** @nullable */
+  message_provider?: string | null;
+  /** @nullable */
+  microsoft?: boolean | null;
+  /** @nullable */
+  microsoft_callback?: string | null;
+  /** @nullable */
+  microsoft_callback_fe_fail?: string | null;
+  /** @nullable */
+  microsoft_client_id?: string | null;
+  /** @nullable */
+  microsoft_client_secret?: string | null;
+  /** @nullable */
+  microsoft_tenant_id?: string | null;
+  mobile_module?: null | OnOff;
+  name: string;
+  /** @nullable */
+  neon_integration?: boolean | null;
+  /** @nullable */
+  nh_sms_gateway_key?: string | null;
+  /** @nullable */
+  one_signal_api_key?: string | null;
+  /** @nullable */
+  one_signal_app_id?: string | null;
+  /** @nullable */
+  oneid_api?: string | null;
+  /** @nullable */
+  oneid_integration?: boolean | null;
+  /** @nullable */
+  oneid_pass?: string | null;
+  /** @nullable */
+  oneid_token?: string | null;
+  /** @nullable */
+  oneid_user?: string | null;
+  /** @nullable */
+  only_owner_can_edit_business_case?: boolean | null;
+  /** @nullable */
+  plan?: string | null;
+  push_notification_frequency_cap?: null | FrequencyCap;
+  /** @nullable */
+  rabbitmq_consumer_count?: number | null;
+  /** @nullable */
+  rabbitmq_ip?: string | null;
+  /** @nullable */
+  rabbitmq_multiple_prefetch?: number | null;
+  /** @nullable */
+  rabbitmq_pass?: string | null;
+  /** @nullable */
+  rabbitmq_single_prefetch?: number | null;
+  /** @nullable */
+  rabbitmq_user?: string | null;
+  /** @nullable */
+  rabbitmq_vhost?: string | null;
+  security?: null | Security;
+  /** @nullable */
+  spark_post_api_key?: string | null;
+  /** @nullable */
+  spark_post_sub_account?: string | null;
+  /** @nullable */
+  spark_post_webhook_pass?: string | null;
+  /** @nullable */
+  spark_post_webhook_username?: string | null;
+  /** @nullable */
+  spartaid_integration?: boolean | null;
+  /** @nullable */
+  subject_prefixes?: TenantResponseSubjectPrefixesItem[] | null;
+  /** @nullable */
+  ticket_portal_integration?: boolean | null;
+  version: number;
+  visualization?: null | Visualization;
+  webhooks?: null | Webhooks;
+}
+
+export interface TenantStatsResponse {
+  /** Breakdowns by device, city, and gender. */
+  distributions: FansDistributions;
+  /**
+     * Total number of fans in the tenant database.
+     * @minimum 0
+     */
+  fans_count: number;
+  /** Cumulative monthly fan counts, one point per month (1st of month, UTC).
+  Starts one month before the first registration (count = 0). */
+  fans_over_time: FansDataPoint[];
+  /**
+     * Number of new fans registered in the last 30 days.
+     * @minimum 0
+     */
+  new_fans_last_month: number;
 }
 
 export interface Token {
   token: string;
-}
-
-export interface UpdateTodo {
-  completed: boolean;
-  description: string;
-  title: string;
 }
 
 export interface UpdateUser {

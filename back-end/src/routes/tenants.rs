@@ -1,20 +1,10 @@
-use axum::{
-    Json,
-    extract::{Path, State},
-};
+use axum::{Json, extract::State};
 
 use crate::{
     auth::OptionalAuthSession,
     error::AppError,
-    mongo::{
-        MongoService,
-        tenants::{FanCountResponse, TenantFanCount, TenantResponse},
-    },
+    mongo::{MongoService, tenants::{FansDataPoint, FansDistributions, TenantResponse}},
 };
-
-// ---------------------------------------------------------------------------
-// GET /tenants
-// ---------------------------------------------------------------------------
 
 /// List all tenants
 ///
@@ -42,127 +32,95 @@ pub async fn list_tenants(
 ) -> Result<Json<Vec<TenantResponse>>, AppError> {
     user.ok_or(AppError::Unauthorized)?;
 
-    let tenants = mongo.list_tenants().await?;
-    tracing::debug!(count = tenants.len(), "listed tenants");
-    Ok(Json(tenants))
+    Ok(Json(mongo.list_tenants().await?))
 }
 
-// ---------------------------------------------------------------------------
-// GET /tenants/fans/count
-// ---------------------------------------------------------------------------
-
-/// Fan counts for all tenants
+/// Get tenant by ID
 ///
-/// Iterates every tenant in `mt_admin.tenants`, counts the documents in that
-/// tenant's `fans` collection, and returns the results in a single response.
-///
-/// Useful for a quick cross-tenant overview without needing to know individual
-/// hostnames up front.
+/// Returns the tenant document for the specified tenant ID.
 #[utoipa::path(
     get,
-    path = "/tenants/fans/count",
+    path = "/tenants/{tenant_id}",
     params(
+        ("tenant_id" = String, Path, description = "Tenant ID"),
         ("Authorization" = String, Header, description = "Bearer access token. Format: `Bearer <token>`")
     ),
     security(("bearerAuth" = [])),
     responses(
-        (status = 200, description = "Fan counts per tenant",body = Vec<TenantFanCount>),
-        (status = 401, description = "Unauthorized",         body = crate::error::ErrorResponse),
+        (status = 200, description = "Tenant details",      body = TenantResponse),
+        (status = 401, description = "Unauthorized",       body = crate::error::ErrorResponse),
+        (status = 404, description = "Tenant not found",   body = crate::error::ErrorResponse),
         (status = 500, description = "Internal server error",body = crate::error::ErrorResponse),
     ),
     tag = "Tenants"
 )]
 #[tracing::instrument(skip_all)]
-pub async fn count_all_fans(
-    OptionalAuthSession(user): OptionalAuthSession,
-    State(mongo): State<MongoService>,
-) -> Result<Json<Vec<TenantFanCount>>, AppError> {
-    user.ok_or(AppError::Unauthorized)?;
-
-    let counts = mongo.count_fans_per_tenant().await?;
-    tracing::debug!(tenants = counts.len(), "counted fans for all tenants");
-    Ok(Json(counts))
-}
-
-// ---------------------------------------------------------------------------
-// GET /tenants/:hostname
-// ---------------------------------------------------------------------------
-
-/// Get tenant by hostname
-///
-/// Returns the tenant document whose `hostname` field matches the given value
-/// (e.g. `fkteplice.relatoo.app`).
-#[utoipa::path(
-    get,
-    path = "/tenants/{hostname}",
-    params(
-        ("hostname" = String, Path, description = "The tenant's full hostname, e.g. `fkteplice.relatoo.app`"),
-        ("Authorization" = String, Header, description = "Bearer access token. Format: `Bearer <token>`")
-    ),
-    security(("bearerAuth" = [])),
-    responses(
-        (status = 200, description = "Tenant found",         body = TenantResponse),
-        (status = 401, description = "Unauthorized",         body = crate::error::ErrorResponse),
-        (status = 404, description = "Tenant not found",     body = crate::error::ErrorResponse),
-        (status = 500, description = "Internal server error",body = crate::error::ErrorResponse),
-    ),
-    tag = "Tenants"
-)]
-#[tracing::instrument(skip_all, fields(hostname = %hostname))]
 pub async fn get_tenant(
     OptionalAuthSession(user): OptionalAuthSession,
     State(mongo): State<MongoService>,
-    Path(hostname): Path<String>,
+    axum::extract::Path(tenant_id): axum::extract::Path<String>,
 ) -> Result<Json<TenantResponse>, AppError> {
     user.ok_or(AppError::Unauthorized)?;
-
-    let tenant = mongo
-        .get_tenant_by_hostname(&hostname)
-        .await?
-        .ok_or_else(|| {
-            tracing::warn!(hostname = %hostname, "tenant not found");
-            AppError::NotFound
-        })?;
-
-    Ok(Json(tenant))
+    return mongo.get_tenant(&tenant_id).await.map(Json).or_else(|err| {
+        if matches!(err, AppError::NotFound) {
+            Err(AppError::NotFound)
+        } else {
+            Err(err)
+        }
+    });
 }
 
-// ---------------------------------------------------------------------------
-// GET /tenants/:hostname/fans/count
-// ---------------------------------------------------------------------------
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct TenantStatsResponse {
+    /// Total number of fans in the tenant database.
+    pub fans_count: u64,
+    /// Number of new fans registered in the last 30 days.
+    pub new_fans_last_month: u64,
+    /// Cumulative monthly fan counts, one point per month (1st of month, UTC).
+    /// Starts one month before the first registration (count = 0).
+    pub fans_over_time: Vec<FansDataPoint>,
+    /// Breakdowns by device, city, and gender.
+    pub distributions: FansDistributions,
+}
 
-/// Fan count for a specific tenant
+/// Stats for a tenant
 ///
-/// Returns the number of documents in the `fans` collection of the tenant
-/// identified by `hostname`.
-///
-/// The count is read directly from the tenant's own database, so it always
-/// reflects the current state without any caching.
+/// Returns various statistics about the tenant, such as number of users, todos, etc. (not implemented yet)
 #[utoipa::path(
     get,
-    path = "/tenants/{hostname}/fans/count",
+    path = "/tenants/{tenant_id}/stats",
     params(
-        ("hostname" = String, Path, description = "The tenant's full hostname, e.g. `fkteplice.relatoo.app`"),
+        ("tenant_id" = String, Path, description = "Tenant ID"),
         ("Authorization" = String, Header, description = "Bearer access token. Format: `Bearer <token>`")
     ),
     security(("bearerAuth" = [])),
     responses(
-        (status = 200, description = "Fan count",            body = FanCountResponse),
-        (status = 401, description = "Unauthorized",         body = crate::error::ErrorResponse),
-        (status = 404, description = "Tenant not found",     body = crate::error::ErrorResponse),
-        (status = 500, description = "Internal server error",body = crate::error::ErrorResponse),
+        (status = 200, description = "Tenant statistics", body = TenantStatsResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Tenant not found", body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
     ),
     tag = "Tenants"
 )]
-#[tracing::instrument(skip_all, fields(hostname = %hostname))]
-pub async fn count_fans_for_tenant(
+#[tracing::instrument(skip_all)]
+pub async fn get_tenant_stats(
     OptionalAuthSession(user): OptionalAuthSession,
     State(mongo): State<MongoService>,
-    Path(hostname): Path<String>,
-) -> Result<Json<FanCountResponse>, AppError> {
+    axum::extract::Path(tenant_id): axum::extract::Path<String>,
+) -> Result<Json<TenantStatsResponse>, AppError> {
     user.ok_or(AppError::Unauthorized)?;
+    let tenant = mongo.get_tenant(&tenant_id).await?;
 
-    let fan_count = mongo.count_fans_for_hostname(&hostname).await?;
-    tracing::debug!(hostname = %hostname, fan_count, "counted fans for tenant");
-    Ok(Json(FanCountResponse { fan_count }))
+    let (fans_count, (new_fans_last_month, fans_over_time), distributions) = tokio::try_join!(
+        mongo.get_tenant_fans_count(&tenant.db_name),
+        mongo.get_tenant_fans_count_in_time(&tenant.db_name),
+        mongo.get_tenant_fans_distributions(&tenant.db_name),
+    )?;
+
+    Ok(Json(TenantStatsResponse {
+        fans_count,
+        new_fans_last_month,
+        fans_over_time,
+        distributions,
+    }))
 }

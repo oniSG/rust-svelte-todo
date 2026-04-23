@@ -41,20 +41,6 @@ async fn main() {
         .expect("Failed to connect to MongoDB");
     tracing::info!("connected to MongoDB");
 
-    match mongo.count_fans_per_tenant().await {
-        Ok(counts) => {
-            for item in &counts {
-                tracing::info!(
-                    tenant = %item.tenant_name,
-                    db    = %item.db_name,
-                    fans  = item.fan_count,
-                    "tenant fan count"
-                );
-            }
-        }
-        Err(err) => tracing::error!(?err, "failed to count fans per tenant"),
-    }
-
     let db = db::DatabaseService::new(pool);
     let auth = auth::AuthService::new(db.clone(), config.jwt_secret);
     let app: axum::Router = routes::build_router(db, auth, mongo);

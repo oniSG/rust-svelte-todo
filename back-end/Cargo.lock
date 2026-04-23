@@ -1831,6 +1831,7 @@ dependencies = [
  "jsonwebtoken",
  "mongodb",
  "serde",
+ "serde_path_to_error",
  "slug",
  "sqlx",
  "thiserror 2.0.18",

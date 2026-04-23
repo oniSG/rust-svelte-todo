@@ -1,12 +1,23 @@
 <script lang="ts">
-	import { createMe } from '$lib/api/generated/auth/auth';
+	import { createMe, createSignout } from '$lib/api/generated/auth/auth';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Avatar from '$lib/components/ui/avatar/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
+	import { goto } from '$app/navigation';
 
 	const meQuery = createMe();
 	const user = $derived(meQuery.data?.status === 200 ? meQuery.data.data : null);
+
+	const signoutMutation = createSignout(() => ({
+		mutation: {
+			onSuccess: () => goto('/auth/signin')
+		}
+	}));
+
+	function handleSignOut() {
+		signoutMutation.mutate();
+	}
 
 	function getInitials(name: string) {
 		return name
@@ -36,17 +47,20 @@
 
 		<!-- Nav links -->
 		<nav class="flex items-center gap-1">
-			<Button
-				variant="ghost"
-				size="sm"
-				href="/"
-				class="text-muted-foreground hover:text-foreground">Dashboard</Button
+			<Button variant="ghost" size="sm" href="/" class="text-muted-foreground hover:text-foreground"
+				>Dashboard</Button
 			>
 			<Button
 				variant="ghost"
 				size="sm"
 				href="/users"
 				class="text-muted-foreground hover:text-foreground">Users</Button
+			>
+			<Button
+				variant="ghost"
+				size="sm"
+				href="/tenants"
+				class="text-muted-foreground hover:text-foreground">Tenants</Button
 			>
 		</nav>
 
@@ -77,7 +91,7 @@
 						</DropdownMenu.Label>
 						<DropdownMenu.Separator />
 						<DropdownMenu.Item class="text-destructive focus:text-destructive">
-							<a href="/auth/signout" class="flex w-full items-center text-destructive">
+							<button class="flex w-full items-center text-destructive" onclick={handleSignOut}>
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									width="14"
@@ -95,7 +109,7 @@
 									/><line x1="21" y1="12" x2="9" y2="12" />
 								</svg>
 								Sign out
-							</a>
+							</button>
 						</DropdownMenu.Item>
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>

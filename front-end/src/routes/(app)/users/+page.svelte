@@ -14,6 +14,7 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
+	import { Eye, EyeOff, Wand2 } from '@lucide/svelte';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Select from '$lib/components/ui/select/index.js';
@@ -40,6 +41,25 @@
 	let addOpen = $state(false);
 	let addForm = $state({ full_name: '', email: '', password: '', role: UserRole.viewer as string });
 	let addError = $state('');
+	let showPassword = $state(false);
+
+	function generatePassword() {
+		const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		const lower = 'abcdefghijklmnopqrstuvwxyz';
+		const digits = '0123456789';
+		const symbols = '!@#$%^&*()-_=+[]{}';
+		const all = upper + lower + digits + symbols;
+		const rand = (s: string) => s[Math.floor(Math.random() * s.length)];
+		const rest = Array.from({ length: 12 }, () => rand(all));
+		const pw = [rand(upper), rand(lower), rand(digits), rand(symbols), ...rest];
+		// shuffle
+		for (let i = pw.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[pw[i], pw[j]] = [pw[j], pw[i]];
+		}
+		addForm.password = pw.join('');
+		showPassword = true;
+	}
 
 	const addMutation = createCreateUser(() => ({
 		mutation: {
@@ -49,6 +69,7 @@
 				addOpen = false;
 				addForm = { full_name: '', email: '', password: '', role: UserRole.viewer };
 				addError = '';
+				showPassword = false;
 			},
 			onError: (err) => {
 				addError = err.error ?? 'Failed to create user';
@@ -226,14 +247,39 @@
 				/>
 			</div>
 			<div class="space-y-1.5">
-				<Label for="add-password">Password</Label>
-				<Input
-					id="add-password"
-					type="password"
-					bind:value={addForm.password}
-					placeholder="••••••••"
-					required
-				/>
+				<div class="flex items-center justify-between">
+					<Label for="add-password">Password</Label>
+					<button
+						type="button"
+						onclick={generatePassword}
+						class="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+					>
+						<Wand2 class="h-3 w-3" />
+						Generate
+					</button>
+				</div>
+				<div class="relative">
+					<Input
+						id="add-password"
+						type={showPassword ? 'text' : 'password'}
+						bind:value={addForm.password}
+						placeholder="••••••••"
+						class="pr-9 font-mono"
+						required
+					/>
+					<button
+						type="button"
+						onclick={() => (showPassword = !showPassword)}
+						class="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground transition-colors hover:text-foreground"
+						tabindex={-1}
+					>
+						{#if showPassword}
+							<EyeOff class="h-4 w-4" />
+						{:else}
+							<Eye class="h-4 w-4" />
+						{/if}
+					</button>
+				</div>
 			</div>
 			<div class="space-y-1.5">
 				<Label>Role</Label>

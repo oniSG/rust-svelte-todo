@@ -1,6 +1,5 @@
 pub mod auth;
 pub mod tenants;
-pub mod todos;
 pub mod users;
 
 use axum::{
@@ -22,7 +21,6 @@ use crate::{auth::AuthService, db::DatabaseService, mongo::MongoService};
 #[derive(OpenApi)]
 #[openapi(
     tags(
-        (name = "Todos"),
         (name = "Auth"),
         (name = "Users"),
         (name = "Tenants", description = "Multi-tenant registry and per-tenant fan counts (Atlas / MongoDB)"),
@@ -81,25 +79,15 @@ pub fn build_router(db: DatabaseService, auth: AuthService, mongo: MongoService)
         .routes(routes!(auth::signin))
         .routes(routes!(auth::me))
         .routes(routes!(auth::signout))
-        .routes(routes!(todos::list_todos, todos::create_todo))
-        .routes(routes!(
-            todos::get_todo,
-            todos::update_todo,
-            todos::delete_todo
-        ))
         .routes(routes!(users::list_users, users::create_user))
         .routes(routes!(
             users::get_user,
             users::update_user,
             users::delete_user
         ))
-        // Tenant routes — each on its own call because they are all GET but on
-        // different paths. Static paths (/fans/count) must come before dynamic
-        // ones (/:hostname) to avoid axum shadowing them.
         .routes(routes!(tenants::list_tenants))
-        .routes(routes!(tenants::count_all_fans))
         .routes(routes!(tenants::get_tenant))
-        .routes(routes!(tenants::count_fans_for_tenant))
+        .routes(routes!(tenants::get_tenant_stats))
         .with_state(AppState { db, auth, mongo })
         .split_for_parts();
 
