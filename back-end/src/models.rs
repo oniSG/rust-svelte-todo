@@ -1,3 +1,4 @@
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -87,4 +88,92 @@ pub struct DBUser {
     pub email: String,
     pub password: String,
     pub role: UserRole,
+}
+
+// ── Finance Plan ─────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, sqlx::FromRow)]
+pub struct FinancePlanEntry {
+    pub id: String,
+    pub period_date: NaiveDate,
+    pub income: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct CreateFinancePlanEntry {
+    pub period_date: NaiveDate,
+    pub income: i32,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateFinancePlanEntry {
+    pub period_date: NaiveDate,
+    pub income: i32,
+}
+
+// ── Billing ──────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone, sqlx::Type, PartialEq, Eq)]
+#[sqlx(type_name = "billing_condition", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum BillingCondition {
+    LessThan,
+    MoreThan,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, sqlx::FromRow)]
+pub struct BillingEntry {
+    pub id: String,
+    pub fans_count: i32,
+    pub condition: BillingCondition,
+    pub basic_plan_price: Option<i32>,
+    pub standard_plan_price: Option<i32>,
+    pub premium_plan_price: Option<i32>,
+    pub individual_plan_price: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct CreateBillingEntry {
+    pub fans_count: i32,
+    pub condition: BillingCondition,
+    pub basic_plan_price: Option<i32>,
+    pub standard_plan_price: Option<i32>,
+    pub premium_plan_price: Option<i32>,
+    pub individual_plan_price: bool,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct UpdateBillingEntry {
+    pub fans_count: i32,
+    pub condition: BillingCondition,
+    pub basic_plan_price: Option<i32>,
+    pub standard_plan_price: Option<i32>,
+    pub premium_plan_price: Option<i32>,
+    pub individual_plan_price: bool,
+}
+
+// ── Tenant Notes ──────────────────────────────────────────────────────────────
+
+/// A free-text admin note attached to a specific tenant (identified by its MongoDB ObjectId).
+#[derive(Serialize, Deserialize, ToSchema, Clone, sqlx::FromRow)]
+pub struct TenantNote {
+    pub id: String,
+    /// MongoDB ObjectId of the tenant this note belongs to.
+    pub mongo_id: String,
+    pub note: Option<String>,
+    /// Price note in integer units (e.g. cents).
+    pub price: Option<i32>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct UpsertTenantNote {
+    pub note: Option<String>,
+    /// Price note in integer units (e.g. cents).
+    pub price: Option<i32>,
 }

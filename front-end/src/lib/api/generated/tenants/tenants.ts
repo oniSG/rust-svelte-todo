@@ -18,6 +18,7 @@ import type {
 
 import type {
   ErrorResponse,
+  TenantFansCountResponse,
   TenantResponse,
   TenantStatsResponse
 } from '../rustSvelteTodo.schemas';
@@ -229,6 +230,115 @@ export function createGetTenant<TData = Awaited<ReturnType<typeof getTenant>>, T
 
 
   const query = createQuery(() => getGetTenantQueryOptions(tenantId(),options?.()), queryClient) as CreateQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return query
+}
+
+
+
+
+
+
+/**
+ * Returns the total number of fans registered in the tenant database.
+
+The request must include a valid Bearer token in the Authorization header for authentication
+(use the `/auth/signin` endpoint to obtain a token).
+ * @summary Get fans count for a tenant
+ */
+export type getTenantFansCountResponse200 = {
+  data: TenantFansCountResponse
+  status: 200
+}
+
+export type getTenantFansCountResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getTenantFansCountResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getTenantFansCountResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getTenantFansCountResponseSuccess = (getTenantFansCountResponse200) & {
+  headers: Headers;
+};
+export type getTenantFansCountResponseError = (getTenantFansCountResponse401 | getTenantFansCountResponse404 | getTenantFansCountResponse500) & {
+  headers: Headers;
+};
+
+export type getTenantFansCountResponse = (getTenantFansCountResponseSuccess | getTenantFansCountResponseError)
+
+export const getGetTenantFansCountUrl = (tenantId: string,) => {
+
+
+
+
+  return `/tenants/${tenantId}/fans`
+}
+
+export const getTenantFansCount = async (tenantId: string, options?: RequestInit): Promise<getTenantFansCountResponse> => {
+
+  return customFetch<getTenantFansCountResponse>(getGetTenantFansCountUrl(tenantId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTenantFansCountQueryKey = (tenantId: string,) => {
+    return [
+    `/tenants/${tenantId}/fans`
+    ] as const;
+    }
+
+
+export const getGetTenantFansCountQueryOptions = <TData = Awaited<ReturnType<typeof getTenantFansCount>>, TError = ErrorResponse>(tenantId: string, options?: { query?:Partial<CreateQueryOptions<Awaited<ReturnType<typeof getTenantFansCount>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTenantFansCountQueryKey(tenantId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTenantFansCount>>> = ({ signal }) => getTenantFansCount(tenantId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(tenantId), ...queryOptions} as CreateQueryOptions<Awaited<ReturnType<typeof getTenantFansCount>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTenantFansCountQueryResult = NonNullable<Awaited<ReturnType<typeof getTenantFansCount>>>
+export type GetTenantFansCountQueryError = ErrorResponse
+
+
+/**
+ * @summary Get fans count for a tenant
+ */
+
+export function createGetTenantFansCount<TData = Awaited<ReturnType<typeof getTenantFansCount>>, TError = ErrorResponse>(
+ tenantId: () =>  string, options?: () => { query?:Partial<CreateQueryOptions<Awaited<ReturnType<typeof getTenantFansCount>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: () => QueryClient
+ ): CreateQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+
+
+  const query = createQuery(() => getGetTenantFansCountQueryOptions(tenantId(),options?.()), queryClient) as CreateQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
   return query
 }

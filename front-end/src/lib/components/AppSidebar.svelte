@@ -3,7 +3,8 @@
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import * as Avatar from '$lib/components/ui/avatar/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
-	import { Users, Building2, LogOut, ChevronsUpDown } from '@lucide/svelte';
+	import { Users, Building2, LogOut, ChevronsUpDown, ChevronRight, TrendingUp, FileText, Wallet, LayoutDashboard } from '@lucide/svelte';
+	import * as Collapsible from '$lib/components/ui/collapsible/index.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
@@ -32,6 +33,12 @@
 	const navItems = [
 		{ href: '/tenants', label: 'Tenants', icon: Building2 },
 		{ href: '/users', label: 'Users', icon: Users }
+	];
+
+	const financesItems = [
+		{ href: '/finances/overview', label: 'Overview', icon: LayoutDashboard },
+		{ href: '/finances/plan', label: 'Plan', icon: TrendingUp },
+		{ href: '/finances/billing', label: 'Billing', icon: FileText }
 	];
 </script>
 
@@ -89,6 +96,45 @@
 							</Sidebar.MenuButton>
 						</Sidebar.MenuItem>
 					{/each}
+
+					<Collapsible.Root
+						open={$page.url.pathname.startsWith('/finances')}
+						class="group/collapsible"
+					>
+						{#snippet child({ props })}
+							<Sidebar.MenuItem {...props}>
+								<Collapsible.Trigger>
+									{#snippet child({ props })}
+										<Sidebar.MenuButton {...props} tooltipContent="Finances">
+											<Wallet />
+											<span>Finances</span>
+											<ChevronRight
+												class="ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+											/>
+										</Sidebar.MenuButton>
+									{/snippet}
+								</Collapsible.Trigger>
+								<Collapsible.Content>
+									<Sidebar.MenuSub>
+										{#each financesItems as subItem}
+											<Sidebar.MenuSubItem>
+												<Sidebar.MenuSubButton
+													isActive={$page.url.pathname.startsWith(subItem.href)}
+												>
+													{#snippet child({ props })}
+														<a href={subItem.href} {...props}>
+															<subItem.icon />
+															<span>{subItem.label}</span>
+														</a>
+													{/snippet}
+												</Sidebar.MenuSubButton>
+											</Sidebar.MenuSubItem>
+										{/each}
+									</Sidebar.MenuSub>
+								</Collapsible.Content>
+							</Sidebar.MenuItem>
+						{/snippet}
+					</Collapsible.Root>
 				</Sidebar.Menu>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>

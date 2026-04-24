@@ -83,6 +83,49 @@ pub struct TenantStatsResponse {
     pub distributions: FansDistributions,
 }
 
+/// Get fans count for a tenant
+///
+/// Returns the total number of fans registered in the tenant database.
+///
+/// The request must include a valid Bearer token in the Authorization header for authentication
+/// (use the `/auth/signin` endpoint to obtain a token).
+#[utoipa::path(
+    get,
+    path = "/tenants/{tenant_id}/fans",
+    params(
+        ("tenant_id" = String, Path, description = "Tenant ID"),
+        ("Authorization" = String, Header, description = "Bearer access token. Format: `Bearer <token>`")
+    ),
+    security(("bearerAuth" = [])),
+    responses(
+        (status = 200, description = "Tenant fans count", body = TenantFansCountResponse),
+        (status = 401, description = "Unauthorized",       body = crate::error::ErrorResponse),
+        (status = 404, description = "Tenant not found",   body = crate::error::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::error::ErrorResponse),
+    ),
+    tag = "Tenants"
+)]
+#[tracing::instrument(skip_all, fields(tenant.id = %tenant_id))]
+pub async fn get_tenant_fans_count(
+    OptionalAuthSession(user): OptionalAuthSession,
+    State(mongo): State<MongoService>,
+    axum::extract::Path(tenant_id): axum::extract::Path<String>,
+) -> Result<Json<TenantFansCountResponse>, AppError> {
+    user.ok_or(AppError::Unauthorized)?;
+
+    let tenant = mongo.get_tenant(&tenant_id).await?;
+    let fans_count = mongo.get_tenant_fans_count(&tenant.db_name).await?;
+
+    tracing::debug!(tenant.id = %tenant_id, fans_count, "fetched tenant fans count");
+    Ok(Json(TenantFansCountResponse { fans_count }))
+}
+
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct TenantFansCountResponse {
+    /// Total number of fans in the tenant database.
+    pub fans_count: u64,
+}
+
 /// Stats for a tenant
 ///
 /// Returns various statistics about the tenant, such as number of users, todos, etc. (not implemented yet)

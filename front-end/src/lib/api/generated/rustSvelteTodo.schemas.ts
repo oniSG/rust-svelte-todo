@@ -29,6 +29,46 @@ export interface BiUrl {
   users?: string[] | null;
 }
 
+export type BillingCondition = typeof BillingCondition[keyof typeof BillingCondition];
+
+
+export const BillingCondition = {
+  less_than: 'less_than',
+  more_than: 'more_than',
+} as const;
+
+export interface BillingEntry {
+  /** @nullable */
+  basic_plan_price?: number | null;
+  condition: BillingCondition;
+  created_at: string;
+  fans_count: number;
+  id: string;
+  individual_plan_price: boolean;
+  /** @nullable */
+  premium_plan_price?: number | null;
+  /** @nullable */
+  standard_plan_price?: number | null;
+  updated_at: string;
+}
+
+export interface CreateBillingEntry {
+  /** @nullable */
+  basic_plan_price?: number | null;
+  condition: BillingCondition;
+  fans_count: number;
+  individual_plan_price: boolean;
+  /** @nullable */
+  premium_plan_price?: number | null;
+  /** @nullable */
+  standard_plan_price?: number | null;
+}
+
+export interface CreateFinancePlanEntry {
+  income: number;
+  period_date: string;
+}
+
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 
@@ -89,6 +129,14 @@ export interface FansDistributions {
   genders: DistributionEntry[];
 }
 
+export interface FinancePlanEntry {
+  created_at: string;
+  id: string;
+  income: number;
+  period_date: string;
+  updated_at: string;
+}
+
 export interface FrequencyCap {
   /** @nullable */
   enabled?: boolean | null;
@@ -127,6 +175,32 @@ export interface Security {
 export interface SigninUser {
   email: string;
   password: string;
+}
+
+export interface TenantFansCountResponse {
+  /**
+     * Total number of fans in the tenant database.
+     * @minimum 0
+     */
+  fans_count: number;
+}
+
+/**
+ * A free-text admin note attached to a specific tenant (identified by its MongoDB ObjectId).
+ */
+export interface TenantNote {
+  created_at: string;
+  id: string;
+  /** MongoDB ObjectId of the tenant this note belongs to. */
+  mongo_id: string;
+  /** @nullable */
+  note?: string | null;
+  /**
+     * Price note in integer units (e.g. cents).
+     * @nullable
+     */
+  price?: number | null;
+  updated_at: string;
 }
 
 /**
@@ -426,9 +500,36 @@ export interface Token {
   token: string;
 }
 
+export interface UpdateBillingEntry {
+  /** @nullable */
+  basic_plan_price?: number | null;
+  condition: BillingCondition;
+  fans_count: number;
+  individual_plan_price: boolean;
+  /** @nullable */
+  premium_plan_price?: number | null;
+  /** @nullable */
+  standard_plan_price?: number | null;
+}
+
+export interface UpdateFinancePlanEntry {
+  income: number;
+  period_date: string;
+}
+
 export interface UpdateUser {
   full_name: string;
   role: UserRole;
+}
+
+export interface UpsertTenantNote {
+  /** @nullable */
+  note?: string | null;
+  /**
+     * Price note in integer units (e.g. cents).
+     * @nullable
+     */
+  price?: number | null;
 }
 
 export interface User {

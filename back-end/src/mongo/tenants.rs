@@ -765,12 +765,14 @@ impl MongoService {
         Ok(TenantResponse::from(tenant))
     }
 
+    /// Returns the number of fans that are not locked
+    /// (`locked` is `false`, `null`, or absent — excludes `locked: true`).
     pub async fn get_tenant_fans_count(&self, tenant_db_name: &str) -> Result<u64, AppError> {
         let count = self
             .client
             .database(tenant_db_name)
             .collection::<Document>("fans")
-            .estimated_document_count(None)
+            .count_documents(doc! { "locked": { "$ne": true } }, None)
             .await?;
 
         Ok(count)

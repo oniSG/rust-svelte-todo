@@ -6,9 +6,10 @@ edition = "2024"
 [dependencies]
 axum = "0.8.9"
 serde = { version = "1.0.228", features = ["derive"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "migrate"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "chrono"] }
 tokio = { version = "1.52.1", features = ["full"] }
-utoipa = { version = "5", features = ["axum_extras"] }
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+chrono = { version = "0.4", features = ["serde"] }
 utoipa-axum = "0.2"
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 utoipa-scalar = { version = "0.3", features = ["axum"] }

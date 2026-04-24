@@ -1,4 +1,7 @@
 pub mod auth;
+pub mod billing;
+pub mod finance_plan;
+pub mod tenant_notes;
 pub mod tenants;
 pub mod users;
 
@@ -24,6 +27,9 @@ use crate::{auth::AuthService, db::DatabaseService, mongo::MongoService};
         (name = "Auth"),
         (name = "Users"),
         (name = "Tenants", description = "Multi-tenant registry and per-tenant fan counts (Atlas / MongoDB)"),
+        (name = "Finance Plan", description = "Admin finance plan entries used to build the income graph"),
+        (name = "Billing", description = "Admin billing entries defining plan prices per fan count threshold"),
+        (name = "Tenant Notes", description = "Admin notes attached to individual tenants"),
     ),
     modifiers(&SecurityAddon),
 )]
@@ -87,7 +93,28 @@ pub fn build_router(db: DatabaseService, auth: AuthService, mongo: MongoService)
         ))
         .routes(routes!(tenants::list_tenants))
         .routes(routes!(tenants::get_tenant))
+        .routes(routes!(tenants::get_tenant_fans_count))
         .routes(routes!(tenants::get_tenant_stats))
+        .routes(routes!(
+            finance_plan::list_finance_plan_entries,
+            finance_plan::create_finance_plan_entry
+        ))
+        .routes(routes!(
+            finance_plan::get_finance_plan_entry,
+            finance_plan::update_finance_plan_entry,
+            finance_plan::delete_finance_plan_entry
+        ))
+        .routes(routes!(billing::list_billing_entries, billing::create_billing_entry))
+        .routes(routes!(
+            billing::get_billing_entry,
+            billing::update_billing_entry,
+            billing::delete_billing_entry
+        ))
+        .routes(routes!(
+            tenant_notes::get_tenant_note,
+            tenant_notes::upsert_tenant_note,
+            tenant_notes::delete_tenant_note
+        ))
         .with_state(AppState { db, auth, mongo })
         .split_for_parts();
 
