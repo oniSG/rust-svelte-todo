@@ -6,44 +6,39 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
-	let { user, onclose }: { user: User | null; onclose: () => void } = $props();
+	let { user, open = $bindable(false) }: { user: User; open: boolean } = $props();
 
 	const queryClient = useQueryClient();
 	const mutation = createDeleteUser();
 
-	const open = $derived(user !== null);
+	async function handleDelete() {
+		try {
+			await mutation.mutateAsync({ id: user.id });
+			queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+			toast.success('User deleted');
+			open = false;
+		} catch {
+			toast.error('Failed to delete user');
+		}
+	}
 </script>
 
-<Dialog.Root
-	{open}
-	onOpenChange={(v) => {
-		if (!v) onclose();
-	}}
->
+<Dialog.Root {open} onOpenChange={(v) => { if (!v) open = v; }}>
 	<Dialog.Content class="sm:max-w-110" showCloseButton={false}>
 		<Dialog.Header>
 			<Dialog.Title>Delete User</Dialog.Title>
 			<Dialog.Description>
-				Are you sure you want to delete <strong>{user?.full_name}</strong>? This cannot be undone.
+				Are you sure you want to delete <strong>{user.full_name}</strong>? This cannot be undone.
 			</Dialog.Description>
 		</Dialog.Header>
+
 		<Dialog.Footer>
-			<Button type="button" variant="outline" onclick={onclose}>Cancel</Button>
+			<Button type="button" variant="outline" onclick={() => (open = false)}>Cancel</Button>
 			<Button
 				type="button"
 				variant="destructive"
 				disabled={mutation.isPending}
-				onclick={async () => {
-					if (!user) return;
-					try {
-						await mutation.mutateAsync({ id: user.id });
-						queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
-						toast.success('User deleted');
-						onclose();
-					} catch {
-						toast.error('Failed to delete user');
-					}
-				}}
+				onclick={handleDelete}
 			>
 				{mutation.isPending ? 'Deleting...' : 'Delete'}
 			</Button>

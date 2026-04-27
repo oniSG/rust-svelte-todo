@@ -13,7 +13,7 @@
 	import * as Select from '$lib/components/ui/select/index.js';
 	import { ROLE_LABELS } from '../users.utils';
 
-	let { user, onclose }: { user: User | null; onclose: () => void } = $props();
+	let { user, open = $bindable(false) }: { user: User; open: boolean } = $props();
 
 	const queryClient = useQueryClient();
 	const mutation = createUpdateUser();
@@ -32,7 +32,7 @@
 		extend: validator({ schema }),
 		onSubmit: async (values) => {
 			await mutation.mutateAsync({
-				id: user!.id,
+				id: user.id,
 				data: {
 					full_name: values.full_name,
 					role: values.role as (typeof UserRole)[keyof typeof UserRole]
@@ -49,32 +49,24 @@
 	});
 
 	function handleClose() {
-		if (!open) return;
 		submitAttempted = false;
 		reset();
-		onclose();
+		open = false;
 	}
 
 	$effect(() => {
-		if (user) {
+		if (open) {
 			reset();
 			setFields({ full_name: user.full_name, role: user.role });
 		}
 	});
-
-	const open = $derived(user !== null);
 </script>
 
-<Dialog.Root
-	{open}
-	onOpenChange={(v) => {
-		if (!v) handleClose();
-	}}
->
+<Dialog.Root {open} onOpenChange={(v) => { if (!v) handleClose(); }}>
 	<Dialog.Content class="sm:max-w-110" showCloseButton={false}>
 		<Dialog.Header>
 			<Dialog.Title>Edit User</Dialog.Title>
-			<Dialog.Description>Update name and role for {user?.full_name ?? ''}.</Dialog.Description>
+			<Dialog.Description>Update name and role for {user.full_name}.</Dialog.Description>
 		</Dialog.Header>
 
 		<form use:form onsubmit={() => (submitAttempted = true)}>
